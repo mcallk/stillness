@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14110F">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Stillness</title>
+<style>
+  :root{
+    --bg:#14110F;          /* deep warm near-black */
+    --bg-raised:#1F1A16;
+    --ink:#EDE6DC;         /* warm bone text */
+    --ink-dim:#9B9085;
+    --ink-faint:#5C544B;
+    --brass:#C9A24B;       /* singing-bowl brass accent */
+    --brass-soft:#8C7637;
+    --line:#2C2620;
+    --good:#7FA86B;        /* used WITH shape/labels, never alone */
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;
+    min-height:100dvh;
+    overflow:hidden;
+    user-select:none;
+  }
+  /* ---- top tabs ---- */
+  header{
+    display:flex;justify-content:center;gap:8px;
+    padding:max(14px,env(safe-area-inset-top)) 16px 6px;
+  }
+  .tab{
+    background:none;border:1px solid transparent;color:var(--ink-faint);
+    font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    padding:8px 16px;border-radius:999px;cursor:pointer;font-weight:600;
+  }
+  .tab.active{color:var(--ink);border-color:var(--line);background:var(--bg-raised);}
+  /* ---- views ---- */
+  main{flex:1;position:relative;}
+  .view{position:absolute;inset:0;display:none;flex-direction:column;}
+  .view.show{display:flex;}
+
+  /* ===== TIMER VIEW ===== */
+  #timer{align-items:center;justify-content:center;gap:0;padding:0 24px;}
+  .dial{
+    position:relative;width:min(74vw,300px);aspect-ratio:1;
+    display:flex;align-items:center;justify-content:center;margin-bottom:36px;
+  }
+  .dial svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);}
+  .ring-track{fill:none;stroke:var(--line);stroke-width:3;}
+  .ring-prog{fill:none;stroke:var(--brass);stroke-width:5;stroke-linecap:round;
+    transition:stroke-dashoffset .35s linear;}
+  /* breathing aura while running */
+  .aura{position:absolute;width:78%;aspect-ratio:1;border-radius:50%;
+    border:1px solid var(--brass-soft);opacity:0;}
+  .running .aura{animation:breathe 8s ease-in-out infinite;}
+  @keyframes breathe{
+    0%,100%{transform:scale(.82);opacity:.10;}
+    50%{transform:scale(1.05);opacity:.32;}
+  }
+  .readout{text-align:center;z-index:2;}
+  .time{font-size:54px;font-weight:300;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .time.over{color:var(--brass);}
+  .state-label{font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-dim);margin-top:8px;min-height:16px;}
+  .state-label.over{color:var(--brass);}
+
+  /* set-time adjuster (idle only) */
+  .adjust{display:flex;align-items:center;gap:22px;margin-top:14px;}
+  .adjust button{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);
+    background:var(--bg-raised);color:var(--ink);font-size:24px;line-height:1;cursor:pointer;}
+  .adjust .lbl{font-size:11px;letter-spacing:.18em;color:var(--ink-faint);text-transform:uppercase;}
+  .adjust-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
+
+  .primary{
+    margin-top:40px;border:1px solid var(--brass-soft);
+    background:linear-gradient(180deg,#241d14,#1a140e);
+    color:var(--brass);font-size:15px;letter-spacing:.22em;text-transform:uppercase;
+    font-weight:600;padding:18px 56px;border-radius:999px;cursor:pointer;
+  }
+  .primary:active{transform:translateY(1px);}
+  .stopbtn{
+    margin-top:40px;border:1px solid var(--line);background:var(--bg-raised);
+    color:var(--ink-dim);font-size:14px;letter-spacing:.22em;text-transform:uppercase;
+    font-weight:600;padding:18px 56px;border-radius:999px;cursor:pointer;display:none;
+  }
+
+  /* ===== HISTORY VIEW ===== */
+  #history{padding:8px 18px 18px;overflow-y:auto;}
+  .range{display:flex;gap:6px;justify-content:center;margin:6px 0 18px;}
+  .range button{flex:1;max-width:120px;background:var(--bg-raised);border:1px solid var(--line);
+    color:var(--ink-dim);padding:10px;border-radius:10px;font-size:12px;letter-spacing:.12em;
+    text-transform:uppercase;cursor:pointer;font-weight:600;}
+  .range button.active{color:var(--ink);border-color:var(--brass-soft);border-width:1.5px;
+    background:#231c13;}
+  .range button.active::before{content:"● ";color:var(--brass);font-size:10px;}
+  .stats{display:flex;gap:10px;margin-bottom:14px;}
+  .stat{flex:1;background:var(--bg-raised);border:1px solid var(--line);border-radius:12px;
+    padding:14px 12px;text-align:center;}
+  .stat .n{font-size:24px;font-weight:300;font-variant-numeric:tabular-nums;}
+  .stat .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px;}
+  .chartbox{background:var(--bg-raised);border:1px solid var(--line);border-radius:14px;
+    padding:16px 10px 8px;margin-bottom:16px;}
+  .chartbox h3{margin:0 6px 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:600;}
+  .empty{color:var(--ink-faint);text-align:center;font-size:13px;padding:30px 0;}
+  .log{margin-top:4px;}
+  .log h3{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+    margin:0 4px 8px;font-weight:600;}
+  .session{display:flex;align-items:center;justify-content:space-between;
+    padding:12px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;
+    background:var(--bg-raised);}
+  .session .when{font-size:13px;color:var(--ink);}
+  .session .when small{display:block;color:var(--ink-faint);font-size:11px;margin-top:2px;}
+  .session .dur{font-size:15px;font-variant-numeric:tabular-nums;color:var(--brass);}
+  .session .tag{font-size:9px;border:1px solid var(--line);border-radius:5px;padding:2px 5px;
+    color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;margin-left:8px;}
+  .del{background:none;border:none;color:var(--ink-faint);font-size:18px;cursor:pointer;padding:0 4px;}
+
+  /* ===== MODAL ===== */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+    align-items:flex-end;justify-content:center;z-index:10;backdrop-filter:blur(2px);}
+  .scrim.show{display:flex;}
+  .sheet{background:var(--bg-raised);border:1px solid var(--line);border-bottom:none;
+    border-radius:18px 18px 0 0;width:100%;max-width:460px;padding:22px 20px max(22px,env(safe-area-inset-bottom));}
+  .sheet h2{margin:0 0 4px;font-size:18px;font-weight:400;}
+  .sheet p{margin:0 0 18px;color:var(--ink-dim);font-size:13px;}
+  .choice{display:flex;flex-direction:column;gap:10px;}
+  .choice button{display:flex;justify-content:space-between;align-items:center;
+    background:var(--bg);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;color:var(--ink);cursor:pointer;text-align:left;}
+  .choice button .c-title{font-size:14px;}
+  .choice button .c-val{font-size:20px;font-variant-numeric:tabular-nums;color:var(--brass);}
+  .choice button.recommend{border-color:var(--brass-soft);border-width:1.5px;}
+  .choice button .c-title small{display:block;color:var(--ink-faint);font-size:11px;margin-top:3px;letter-spacing:.04em;}
+  .discard{background:none;border:none;color:var(--ink-faint);width:100%;
+    margin-top:14px;padding:10px;font-size:13px;cursor:pointer;letter-spacing:.06em;}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="tab active" data-view="timer">Sit</button>
+  <button class="tab" data-view="history">History</button>
+</header>
+
+<main>
+  <!-- ============ TIMER ============ -->
+  <section id="timer" class="view show">
+    <div class="dial" id="dial">
+      <div class="aura"></div>
+      <svg viewBox="0 0 120 120">
+        <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+        <circle class="ring-prog" id="ring" cx="60" cy="60" r="54"></circle>
+      </svg>
+      <div class="readout">
+        <div class="time" id="display">10:00</div>
+        <div class="state-label" id="stateLabel">10 minute sit</div>
+      </div>
+    </div>
+
+    <div class="adjust-wrap" id="adjustWrap">
+      <div class="adjust">
+        <button id="minus" aria-label="less time">–</button>
+        <span class="lbl">minutes</span>
+        <button id="plus" aria-label="more time">+</button>
+      </div>
+    </div>
+
+    <button class="primary" id="startBtn">Meditate</button>
+    <button class="stopbtn" id="stopBtn">End sit</button>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="history" class="view">
+    <div class="range">
+      <button data-range="week" class="active">Week</button>
+      <button data-range="month">Month</button>
+      <button data-range="year">Year</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="statSessions">0</div><div class="k">sits</div></div>
+      <div class="stat"><div class="n" id="statTotal">0m</div><div class="k">total</div></div>
+      <div class="stat"><div class="n" id="statAvg">0m</div><div class="k">avg sit</div></div>
+    </div>
+    <div class="chartbox">
+      <h3 id="chartTitle">Minutes per day</h3>
+      <div id="chart"></div>
+    </div>
+    <div class="log">
+      <h3>Recent sits</h3>
+      <div id="logList"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ RECORD SHEET ============ -->
+<div class="scrim" id="scrim">
+  <div class="sheet">
+    <h2>Record this sit</h2>
+    <p>You ran past the bell. Which length should I log?</p>
+    <div class="choice">
+      <button id="chooseElapsed" class="recommend">
+        <span class="c-title">Time actually sat<small>everything up to when you ended</small></span>
+        <span class="c-val" id="elapsedVal">00:00</span>
+      </button>
+      <button id="chooseSet">
+        <span class="c-title">Planned length<small>the timer you set</small></span>
+        <span class="c-val" id="setVal">10:00</span>
+      </button>
+    </div>
+    <button class="discard" id="discardBtn">Discard — don't log</button>
+  </div>
+</div>
+
+<script>
+/* ---------------- storage (persists on your phone; falls back to memory in sandboxed preview) ---------------- */
+const KEY='stillness.sessions.v1';
+let mem=null;
+function load(){
+  try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):[];}
+  catch(e){return mem||[];}
+}
+function save(arr){
+  mem=arr;
+  try{localStorage.setItem(KEY,JSON.stringify(arr));}catch(e){/* memory only */}
+}
+let sessions=load();
+
+/* ---------------- soft chime (synthesized, no audio file needed) ---------------- */
+let actx=null;
+function bowl(){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const now=actx.currentTime;
+    // a clean warm "ding": one fundamental + quiet consonant harmonics,
+    // soft attack, smooth fade. No detuning, so no roughness or beating.
+    const f=784; // G5 — warm, not piercing
+    const partials=[
+      {ratio:1, gain:0.9,  dur:2.6},  // body of the ding
+      {ratio:2, gain:0.28, dur:2.0},  // octave shimmer
+      {ratio:3, gain:0.08, dur:1.3},  // faint sparkle
+    ];
+    const out=actx.createGain();
+    out.gain.value=0.30;
+    out.connect(actx.destination);
+    partials.forEach(p=>{
+      const o=actx.createOscillator();
+      const g=actx.createGain();
+      o.type='sine';
+      o.frequency.value=f*p.ratio;
+      g.gain.setValueAtTime(0.0001,now);
+      g.gain.linearRampToValueAtTime(p.gain,now+0.012);          // soft attack
+      g.gain.exponentialRampToValueAtTime(0.0001,now+p.dur);     // smooth tail
+      o.connect(g).connect(out);
+      o.start(now);
+      o.stop(now+p.dur+0.05);
+    });
+  }catch(e){/* audio not available */}
+}
+
+/* ---------------- timer engine ---------------- */
+const C=2*Math.PI*54;                       // ring circumference
+const ring=document.getElementById('ring');
+ring.style.strokeDasharray=C;
+const display=document.getElementById('display');
+const stateLabel=document.getElementById('stateLabel');
+const dial=document.getElementById('dial');
+const startBtn=document.getElementById('startBtn');
+const stopBtn=document.getElementById('stopBtn');
+const adjustWrap=document.getElementById('adjustWrap');
+
+let setMinutes=10;
+let phase='idle';           // idle | running | over
+let startTs=0;              // ms when started
+let tick=null;
+
+function fmt(sec){
+  sec=Math.max(0,Math.round(sec));
+  const m=Math.floor(sec/60), s=sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function renderIdle(){
+  display.textContent=fmt(setMinutes*60);
+  display.classList.remove('over');
+  stateLabel.classList.remove('over');
+  stateLabel.textContent=setMinutes+' minute sit';
+  ring.style.strokeDashoffset=0;
+}
+function step(){
+  const elapsed=(Date.now()-startTs)/1000;
+  const planned=setMinutes*60;
+  if(phase==='running'){
+    const remain=planned-elapsed;
+    if(remain<=0){
+      phase='over'; bowl();
+      display.classList.add('over'); stateLabel.classList.add('over');
+      stateLabel.textContent='SITTING ON — bell rung';
+    }else{
+      display.textContent=fmt(remain);
+      ring.style.strokeDashoffset=-C*(1-remain/planned);
+    }
+  }
+  if(phase==='over'){
+    display.textContent='+'+fmt(elapsed-planned);
+    ring.style.strokeDashoffset=0;
+  }
+}
+function start(){
+  if(phase!=='idle')return;
+  phase='running'; startTs=Date.now();
+  bowl();                                   // opening bell
+  dial.classList.add('running');
+  adjustWrap.style.display='none';
+  startBtn.style.display='none';
+  stopBtn.style.display='inline-block';
+  tick=setInterval(step,200); step();
+}
+function end(){
+  if(phase==='idle')return;
+  clearInterval(tick);
+  const elapsed=(Date.now()-startTs)/1000;
+  dial.classList.remove('running');
+  // open the record sheet
+  document.getElementById('elapsedVal').textContent=fmt(elapsed);
+  document.getElementById('setVal').textContent=fmt(setMinutes*60);
+  pending={elapsed:Math.round(elapsed), planned:setMinutes*60};
+  document.getElementById('scrim').classList.add('show');
+}
+function reset(){
+  phase='idle';
+  stopBtn.style.display='none';
+  startBtn.style.display='inline-block';
+  adjustWrap.style.display='flex';
+  renderIdle();
+}
+
+let pending=null;
+function logSession(seconds,type){
+  sessions.push({t:Date.now(),d:seconds,type});
+  save(sessions);
+  renderHistory();
+}
+
+/* ---------------- record sheet ---------------- */
+document.getElementById('chooseElapsed').onclick=()=>{logSession(pending.elapsed,'sat');closeSheet();};
+document.getElementById('chooseSet').onclick=()=>{logSession(pending.planned,'set');closeSheet();};
+document.getElementById('discardBtn').onclick=()=>{closeSheet();};
+function closeSheet(){document.getElementById('scrim').classList.remove('show');reset();}
+
+/* ---------------- adjuster ---------------- */
+document.getElementById('plus').onclick=()=>{if(phase==='idle'){setMinutes=Math.min(120,setMinutes+1);renderIdle();}};
+document.getElementById('minus').onclick=()=>{if(phase==='idle'){setMinutes=Math.max(1,setMinutes-1);renderIdle();}};
+startBtn.onclick=start;
+stopBtn.onclick=end;
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('show'));
+  document.getElementById(b.dataset.view).classList.add('show');
+  if(b.dataset.view==='history')renderHistory();
+});
+
+/* ---------------- history + chart ---------------- */
+let range='week';
+document.querySelectorAll('.range button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.range button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); range=b.dataset.range; renderHistory();
+});
+
+function startOfDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
+function buildBuckets(){
+  const now=new Date();
+  let buckets=[];
+  if(range==='week'){
+    for(let i=6;i>=0;i--){const d=startOfDay(now);d.setDate(d.getDate()-i);
+      buckets.push({start:d.getTime(),end:d.getTime()+864e5,label:['S','M','T','W','T','F','S'][d.getDay()],mins:0});}
+  }else if(range==='month'){
+    for(let i=29;i>=0;i--){const d=startOfDay(now);d.setDate(d.getDate()-i);
+      buckets.push({start:d.getTime(),end:d.getTime()+864e5,label:(i%5===0?String(d.getDate()):''),mins:0});}
+  }else{
+    for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const e=new Date(now.getFullYear(),now.getMonth()-i+1,1);
+      buckets.push({start:d.getTime(),end:e.getTime(),label:'JFMAMJJASOND'[d.getMonth()],mins:0});}
+  }
+  return buckets;
+}
+function renderHistory(){
+  const buckets=buildBuckets();
+  const from=buckets[0].start, to=buckets[buckets.length-1].end;
+  let total=0,count=0;
+  sessions.forEach(s=>{
+    for(const b of buckets){ if(s.t>=b.start&&s.t<b.end){ b.mins+=s.d/60; } }
+    if(s.t>=from&&s.t<to){ total+=s.d/60; count++; }
+  });
+  document.getElementById('statSessions').textContent=count;
+  document.getElementById('statTotal').textContent=Math.round(total)+'m';
+  document.getElementById('statAvg').textContent=(count?Math.round(total/count):0)+'m';
+  document.getElementById('chartTitle').textContent=
+    range==='year'?'Minutes per month':'Minutes per day';
+  drawChart(buckets);
+  drawLog();
+}
+
+function drawChart(buckets){
+  const W=320,H=150,padL=26,padB=22,padT=10,padR=8;
+  const iw=W-padL-padR, ih=H-padT-padB;
+  const max=Math.max(10,...buckets.map(b=>b.mins));
+  const n=buckets.length;
+  const x=i=> padL + (n===1?iw/2: i*iw/(n-1));
+  const y=v=> padT + ih - (v/max)*ih;
+  // gridlines + y labels (0, mid, max)
+  let grid='';
+  [0,.5,1].forEach(f=>{
+    const v=Math.round(max*f), yy=y(v);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
+    grid+=`<text x="${padL-5}" y="${yy+3}" fill="var(--ink-faint)" font-size="9" text-anchor="end">${v}</text>`;
+  });
+  // path
+  const pts=buckets.map((b,i)=>[x(i),y(b.mins)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+` L ${x(n-1)} ${y(0)} L ${x(0)} ${y(0)} Z`;
+  // dots only where there is data (shape, not just color)
+  const dots=buckets.map((b,i)=>b.mins>0
+    ?`<circle cx="${x(i)}" cy="${y(b.mins)}" r="3.2" fill="var(--brass)" stroke="var(--bg-raised)" stroke-width="1.5"/>`:'').join('');
+  const labels=buckets.map((b,i)=>b.label
+    ?`<text x="${x(i)}" y="${H-6}" fill="var(--ink-faint)" font-size="9" text-anchor="middle">${b.label}</text>`:'').join('');
+  const hasData=buckets.some(b=>b.mins>0);
+  document.getElementById('chart').innerHTML = hasData
+    ? `<svg viewBox="0 0 ${W} ${H}" width="100%">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--brass)" stop-opacity=".28"/>
+          <stop offset="1" stop-color="var(--brass)" stop-opacity="0"/>
+        </linearGradient></defs>
+        ${grid}
+        <path d="${area}" fill="url(#g)"/>
+        <path d="${line}" fill="none" stroke="var(--brass)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}${labels}
+      </svg>`
+    : `<div class="empty">No sits in this range yet.<br>Your line appears here once you log one.</div>`;
+}
+
+function drawLog(){
+  const list=document.getElementById('logList');
+  const recent=[...sessions].sort((a,b)=>b.t-a.t).slice(0,12);
+  if(!recent.length){list.innerHTML='<div class="empty">Nothing logged yet.</div>';return;}
+  list.innerHTML=recent.map(s=>{
+    const d=new Date(s.t);
+    const when=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    const time=d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+    const m=Math.floor(s.d/60),sec=s.d%60;
+    const tag=s.type==='set'?'planned':'sat';
+    return `<div class="session">
+      <div class="when">${when} <small>${time}</small></div>
+      <div style="display:flex;align-items:center">
+        <span class="dur">${m}:${String(sec).padStart(2,'0')}</span>
+        <span class="tag">${tag}</span>
+        <button class="del" data-t="${s.t}" aria-label="delete">×</button>
+      </div></div>`;
+  }).join('');
+  list.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+    sessions=sessions.filter(s=>s.t!=b.dataset.t);save(sessions);renderHistory();
+  });
+}
+
+/* unlock audio on first touch (mobile autoplay policy) */
+document.body.addEventListener('touchstart',()=>{
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}catch(e){}
+},{once:true});
+
+renderIdle();
+</script>
+</body>
+</html>
