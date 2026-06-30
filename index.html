@@ -143,6 +143,9 @@
   .choice button .c-title small{display:block;color:var(--ink-faint);font-size:11px;margin-top:3px;letter-spacing:.04em;}
   .discard{background:none;border:none;color:var(--ink-faint);width:100%;
     margin-top:14px;padding:10px;font-size:13px;cursor:pointer;letter-spacing:.06em;}
+  .ver{position:fixed;left:0;right:0;bottom:calc(6px + env(safe-area-inset-bottom));
+    text-align:center;font-size:10px;letter-spacing:.2em;color:var(--ink-faint);
+    opacity:.55;pointer-events:none;z-index:1;text-transform:uppercase;}
 </style>
 </head>
 <body>
@@ -220,6 +223,8 @@
     <button class="discard" id="discardBtn">Discard — don't log</button>
   </div>
 </div>
+
+<div class="ver" id="ver"></div>
 
 <script>
 /* ---------------- storage (persists on your phone; falls back to memory in sandboxed preview) ---------------- */
@@ -540,6 +545,10 @@ if('serviceWorker' in navigator){
 
 renderIdle();
 restore();   // pick up an interrupted sit, if any
+
+/* ---- visible build stamp: confirms which version loaded ---- */
+const VERSION='1.1';
+document.getElementById('ver').textContent='Stillness · v'+VERSION;
 </script>
 </body>
 </html>
