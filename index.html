@@ -284,6 +284,27 @@ let phase='idle';           // idle | running | over
 let startTs=0;              // ms when started
 let tick=null;
 
+/* ---- keep an in-progress sit alive across freeze / reload ---- */
+const AKEY='stillness.active.v1';
+let activeMem=null;
+function saveActive(o){
+  activeMem=o;
+  try{ o?localStorage.setItem(AKEY,JSON.stringify(o)):localStorage.removeItem(AKEY); }catch(e){}
+}
+function loadActive(){
+  try{ const r=localStorage.getItem(AKEY); return r?JSON.parse(r):activeMem; }catch(e){ return activeMem; }
+}
+
+/* ---- screen wake lock: stops Android freezing the page mid-sit ---- */
+let wakeLock=null;
+async function requestWake(){
+  try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){}
+}
+function releaseWake(){ try{ wakeLock&&wakeLock.release(); }catch(e){} wakeLock=null; }
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && phase!=='idle'){ requestWake(); step(); }
+});
+
 function fmt(sec){
   sec=Math.max(0,Math.round(sec));
   const m=Math.floor(sec/60), s=sec%60;
@@ -318,6 +339,8 @@ function step(){
 function start(){
   if(phase!=='idle')return;
   phase='running'; startTs=Date.now();
+  saveActive({startTs,setMinutes});         // survive a freeze/reload
+  requestWake();                            // keep screen on during the sit
   bowl();                                   // opening bell
   dial.classList.add('running');
   adjustWrap.style.display='none';
@@ -328,12 +351,15 @@ function start(){
 function end(){
   if(phase==='idle')return;
   clearInterval(tick);
-  const elapsed=(Date.now()-startTs)/1000;
+  releaseWake();
+  const elapsed=Math.round((Date.now()-startTs)/1000);
+  const planned=setMinutes*60;
   dial.classList.remove('running');
   // open the record sheet
   document.getElementById('elapsedVal').textContent=fmt(elapsed);
-  document.getElementById('setVal').textContent=fmt(setMinutes*60);
-  pending={elapsed:Math.round(elapsed), planned:setMinutes*60};
+  document.getElementById('setVal').textContent=fmt(planned);
+  pending={elapsed, planned};
+  saveActive({startTs,setMinutes,pending:true,pe:elapsed,pp:planned}); // survive reload mid-choice
   document.getElementById('scrim').classList.add('show');
 }
 function reset(){
@@ -355,7 +381,35 @@ function logSession(seconds,type){
 document.getElementById('chooseElapsed').onclick=()=>{logSession(pending.elapsed,'sat');closeSheet();};
 document.getElementById('chooseSet').onclick=()=>{logSession(pending.planned,'set');closeSheet();};
 document.getElementById('discardBtn').onclick=()=>{closeSheet();};
-function closeSheet(){document.getElementById('scrim').classList.remove('show');reset();}
+function closeSheet(){saveActive(null);document.getElementById('scrim').classList.remove('show');reset();}
+
+/* ---- resume an in-progress sit after a freeze, reload, or app restart ---- */
+function restore(){
+  const a=loadActive();
+  if(!a)return;
+  setMinutes=a.setMinutes||10;
+  adjustWrap.style.display='none';
+  startBtn.style.display='none';
+  stopBtn.style.display='inline-block';
+  if(a.pending){                              // page died while the record sheet was open
+    pending={elapsed:a.pe,planned:a.pp};
+    document.getElementById('elapsedVal').textContent=fmt(a.pe);
+    document.getElementById('setVal').textContent=fmt(a.pp);
+    document.getElementById('scrim').classList.add('show');
+    return;
+  }
+  startTs=a.startTs;                          // resume the live timer at the true time
+  phase='running';
+  dial.classList.add('running');
+  const elapsed=(Date.now()-startTs)/1000, planned=setMinutes*60;
+  if(elapsed>=planned){                       // bell time already passed while away — show it, don't re-ring
+    phase='over';
+    display.classList.add('over'); stateLabel.classList.add('over');
+    stateLabel.textContent='SITTING ON — bell rung';
+  }
+  requestWake();
+  tick=setInterval(step,200); step();
+}
 
 /* ---------------- adjuster ---------------- */
 document.getElementById('plus').onclick=()=>{if(phase==='idle'){setMinutes=Math.min(120,setMinutes+1);renderIdle();}};
@@ -479,7 +533,13 @@ document.body.addEventListener('touchstart',()=>{
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}catch(e){}
 },{once:true});
 
+/* register service worker -> unlocks "Install app" + offline */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+
 renderIdle();
+restore();   // pick up an interrupted sit, if any
 </script>
 </body>
 </html>
